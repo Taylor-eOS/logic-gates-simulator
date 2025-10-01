@@ -22,28 +22,29 @@ class Gate:
     def __hash__(self):
         return hash((self.gate_type, self.inputs))
 
+def make_expected_triplets():
+    expected = []
+    for a in range(4):
+        a1, a0 = (a >> 1) & 1, a & 1
+        for b in range(4):
+            s = a + b
+            sum1 = (s >> 1) & 1
+            sum0 = s & 1
+            carry = (s >> 2) & 1
+            expected.append([sum1, sum0, carry])
+    return expected
+
 def test_adder_function(circuit_func):
-    test_cases = [
-        ([0,0,0,0], [0,0,0]),
-        ([0,0,0,1], [0,1,0]),
-        ([0,0,1,0], [1,0,0]),
-        ([0,0,1,1], [1,1,0]),
-        ([0,1,0,0], [0,1,0]),
-        ([0,1,0,1], [1,0,0]),
-        ([0,1,1,0], [1,1,0]),
-        ([0,1,1,1], [0,0,1]),
-        ([1,0,0,0], [1,0,0]),
-        ([1,0,0,1], [1,1,0]),
-        ([1,0,1,0], [0,0,1]),
-        ([1,0,1,1], [0,1,1]),
-        ([1,1,0,0], [1,1,0]),
-        ([1,1,0,1], [0,0,1]),
-        ([1,1,1,0], [0,1,1]),
-        ([1,1,1,1], [1,0,1])
-    ]
-    for inputs, expected in test_cases:
-        if circuit_func(inputs) != expected:
-            return False
+    expected = make_expected_triplets()
+    idx = 0
+    for a in range(4):
+        a1, a0 = (a >> 1) & 1, a & 1
+        for b in range(4):
+            b1, b0 = (b >> 1) & 1, b & 1
+            inputs = [a1, a0, b1, b0]
+            if circuit_func(inputs) != expected[idx]:
+                return False
+            idx += 1
     return True
 
 def simulate_circuit(input_bits, gates, outputs):
@@ -170,30 +171,6 @@ class Gate:
 
     def __hash__(self):
         return hash((self.gate_type, self.inputs))
-
-def test_adder_function(circuit_func):
-    test_cases = [
-        ([0,0,0,0], [0,0,0]),
-        ([0,0,0,1], [0,0,1]),
-        ([0,0,1,0], [0,1,0]),
-        ([0,0,1,1], [0,1,1]),
-        ([0,1,0,0], [0,0,1]),
-        ([0,1,0,1], [0,1,0]),
-        ([0,1,1,0], [0,1,1]),
-        ([0,1,1,1], [1,0,0]),
-        ([1,0,0,0], [0,1,0]),
-        ([1,0,0,1], [0,1,1]),
-        ([1,0,1,0], [1,0,0]),
-        ([1,0,1,1], [1,0,1]),
-        ([1,1,0,0], [0,1,1]),
-        ([1,1,0,1], [1,0,0]),
-        ([1,1,1,0], [1,0,1]),
-        ([1,1,1,1], [1,1,0])
-    ]
-    for inputs, expected in test_cases:
-        if circuit_func(inputs) != expected:
-            return False
-    return True
 
 def simulate_circuit(input_bits, gates, outputs):
     signals = list(input_bits)
