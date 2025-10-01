@@ -6,7 +6,7 @@
 enum {G_NOT=0,G_AND=1,G_OR=2,G_XOR=3};
 int MAX_GATES = 9;
 int MAX_FOUND = 3;
-int PROGRESS_INTERVAL = 10000000;
+int PROGRESS_INTERVAL = 1000000;
 
 typedef struct {uint8_t type;uint8_t arity;uint8_t in0;uint8_t in1;uint8_t in2;} Gate;
 
@@ -34,8 +34,7 @@ uint16_t eval_gate_mask(const Gate *g,const uint16_t signals[])
 {
     if(g->type==G_NOT){
         uint16_t v = signals[g->in0];
-        uint16_t full = 0xFFFFu;
-        return (~v) & full;
+        return (uint16_t)(~v);
     }
     if(g->arity==2){
         uint16_t a = signals[g->in0];
@@ -80,6 +79,56 @@ int make_expected_masks(uint16_t expected[3],const uint16_t in_masks[4])
     expected[1]=map_sumlow;
     expected[2]=map_carry;
     return 0;
+}
+
+int diag_check_known_adder()
+{
+    uint16_t in_masks[4];
+    prepare_input_masks(in_masks);
+    uint16_t expected[3];
+    make_expected_masks(expected,in_masks);
+    printf("Expected masks: Sum1=0x%04x Sum0=0x%04x Carry=0x%04x\n", expected[0], expected[1], expected[2]);
+    uint16_t signals[32];
+    for(int i=0;i<4;++i) signals[i] = in_masks[i];
+    int next = 4;
+    int idx_s0 = next;
+    Gate g_s0 = {G_XOR,2,1,3,0};
+    signals[next++] = eval_gate_mask(&g_s0, signals);
+    int idx_c0 = next;
+    Gate g_c0 = {G_AND,2,1,3,0};
+    signals[next++] = eval_gate_mask(&g_c0, signals);
+    int idx_s1 = next;
+    Gate g_s1 = {G_XOR,3,0,2,0};
+    g_s1.in2 = (uint8_t)idx_c0;
+    signals[next++] = eval_gate_mask(&g_s1, signals);
+    int idx_a1andb1 = next;
+    Gate g_a1andb1 = {G_AND,2,0,2,0};
+    signals[next++] = eval_gate_mask(&g_a1andb1, signals);
+    int idx_a1xor_b1 = next;
+    Gate g_a1xor_b1 = {G_XOR,2,0,2,0};
+    signals[next++] = eval_gate_mask(&g_a1xor_b1, signals);
+    int idx_c0_and_xor = next;
+    Gate g_c0_and_xor = {G_AND,2,0,0,0};
+    g_c0_and_xor.in0 = (uint8_t)idx_c0;
+    g_c0_and_xor.in1 = (uint8_t)idx_a1xor_b1;
+    signals[next++] = eval_gate_mask(&g_c0_and_xor, signals);
+    int idx_cout = next;
+    Gate g_cout = {G_OR,2,0,0,0};
+    g_cout.in0 = (uint8_t)idx_a1andb1;
+    g_cout.in1 = (uint8_t)idx_c0_and_xor;
+    signals[next++] = eval_gate_mask(&g_cout, signals);
+    uint16_t s0_mask = signals[idx_s0];
+    uint16_t c0_mask = signals[idx_c0];
+    uint16_t s1_mask = signals[idx_s1];
+    uint16_t cout_mask = signals[idx_cout];
+    printf("Known adder masks computed: S1=0x%04x S0=0x%04x Cout=0x%04x (C0=0x%04x)\n", s1_mask, s0_mask, cout_mask, c0_mask);
+    int ok = 1;
+    if(s1_mask != expected[0]) { printf("Mismatch: S1 != expected\n"); ok = 0; }
+    if(s0_mask != expected[1]) { printf("Mismatch: S0 != expected\n"); ok = 0; }
+    if(cout_mask != expected[2]) { printf("Mismatch: Cout != expected\n"); ok = 0; }
+    if(ok) printf("Diagnostic: Known ripple adder matches expected masks.\n");
+    else printf("Diagnostic: Known ripple adder DOES NOT match expected masks. Check ordering.\n");
+    return ok;
 }
 
 int found_count=0;
@@ -183,6 +232,10 @@ int main()
     prepare_input_masks(in_masks);
     uint16_t expected[3];
     make_expected_masks(expected,in_masks);
+    if(!diag_check_known_adder()){
+        printf("Diagnostic failed, aborting search\n");
+        return 1;
+    }
     int min_gates = 6;
     int max_gates = 10;
     if(MAX_GATES>max_gates) MAX_GATES = max_gates;
